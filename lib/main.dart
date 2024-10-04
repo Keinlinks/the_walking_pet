@@ -12,8 +12,10 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
+        resizeToAvoidBottomInset: false, 
         appBar: AppBar(title: Text("The Walking Pet")),
-        body: PetForm(),
+        body: 
+              PetForm()
       ),
     );
   }

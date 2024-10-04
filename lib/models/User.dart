@@ -1,5 +1,7 @@
+import 'package:the_walking_pet/models/race.dart';
+
 class User {
-  String race = "";
+  Race race = Race(name: "", description: "", image: "");
   int age = 0;
   int month = 0;
   int day = 0;
