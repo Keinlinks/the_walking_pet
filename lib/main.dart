@@ -7,15 +7,14 @@ void main() {
 
 class MainApp extends StatelessWidget {
   const MainApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
         resizeToAvoidBottomInset: false, 
-        appBar: AppBar(title: Text("The Walking Pet")),
+        appBar: AppBar(title: const Text("The Walking Pet")),
         body: 
-              PetForm()
+              const PetForm()
       ),
     );
   }
