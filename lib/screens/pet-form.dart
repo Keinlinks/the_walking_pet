@@ -273,18 +273,17 @@ void showPetDescription(Race pet){
               ),
               Column(
                 children: [
-                ElevatedButton(onPressed: () {
+                GestureDetector(
+                  onTap: () {
                   openRaceDialog();
                 }, 
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent, 
-                  shadowColor: Colors.transparent,
-                ),
+                onLongPress: () => showPetDescription(petList[petSelectedIndex].race),
                 child: 
                 PetImage(race:petList[petSelectedIndex].race),
                 ),
                 const SizedBox(height: 10,),
-                Text(petList[petSelectedIndex].race.name),
+                Text(petList[petSelectedIndex].race.name == "" ? "Selecciona una raza" : petList[petSelectedIndex].race.name, 
+                style: const TextStyle(fontSize: 12, color: Colors.black,fontWeight: FontWeight.bold)),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -384,12 +383,17 @@ void showPetDescription(Race pet){
       Flexible(
           child: Align(
         alignment: const AlignmentDirectional(0, 1),
-        child: Column(
+        child: Row(
             mainAxisSize: MainAxisSize.max,
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               ElevatedButton(onPressed: () {}, child: const Text("Siguiente")),
-              const SizedBox(height: 10,),
+              petSelectedIndex == 1 ? ElevatedButton(onPressed: () {
+                setState(() {
+                  petList[1] = User(race: Race(description: "", image: "", name: ""), age: 0, month: 0, day: 0, gender: "hembra");
+                  petSelectedIndex = 0;
+                });
+              },style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shadowColor: Colors.transparent), child: const Text("Borrar"),) : const SizedBox(width: 0,),
               
             ]),
       ))
@@ -410,13 +414,14 @@ class PetImage extends StatelessWidget {
       width: 150,
       height: 150,
       clipBehavior: Clip.antiAlias,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
+        border: race.image == "" ? Border.all(color: Colors.blue.withOpacity(0.7)) : Border.all(color: Colors.transparent),
       ),
-      child: Image.network(
+      child: race.image != "" ? Image.network(
         race.image,
         fit: BoxFit.cover,
-      ),
+      ) : const Icon(Icons.pets),
     );
   }
 }
