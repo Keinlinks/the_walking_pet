@@ -1,4 +1,4 @@
-import 'package:the_walking_pet/models/race.dart';
+import 'package:the_walking_pet/entities/race.dart';
 
 class User {
   Race race = Race(name: "", description: "", image: "");

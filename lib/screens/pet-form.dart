@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:the_walking_pet/models/User.dart';
-import 'package:the_walking_pet/models/race.dart';
+import 'package:the_walking_pet/entities/User.dart';
+import 'package:the_walking_pet/entities/race.dart';
 import 'package:the_walking_pet/screens/main-map.dart';
 import 'package:the_walking_pet/shared/constants.dart';
 class PetForm extends StatefulWidget {
@@ -27,7 +27,7 @@ class _PetFormState extends State<PetForm> {
 
 
   void _submitForm(context){
-      Navigator.push(context, MaterialPageRoute(builder: (context) => MainMap(userData: petList[petSelectedIndex])));
+      Navigator.push(context, MaterialPageRoute(builder: (context) => MainMap(userPets: petList)));
   }
 
   void _openDescriptionDialog() {
@@ -67,7 +67,7 @@ class _PetFormState extends State<PetForm> {
       },
     );
   }
-  void openAgeDialog(String label, int value){
+  void _openAgeDialog(String label, int value){
     TextEditingController dialogController = TextEditingController();
     dialogController.text = value.toString();
     showDialog(
@@ -114,7 +114,7 @@ class _PetFormState extends State<PetForm> {
       },
     );
   }
-void openRaceDialog() {
+  void _openRaceDialog() {
   Race currectRace = petList[petSelectedIndex].race;
   Race dialogRace = currectRace;
   showDialog(
@@ -145,7 +145,7 @@ void openRaceDialog() {
                     });
                   },
                   onLongPress: () {
-                    showPetDescription(race);
+                    _showPetDescription(race);
                   },
                   
                   child: Container(
@@ -160,8 +160,8 @@ void openRaceDialog() {
                             shape: BoxShape.circle,
                             
                           ),
-                          child: Image.network(
-                            race.image,
+                          child: Image(
+                            image: AssetImage(race.image),
                             height: 80,
                             width: 80,
                             fit: BoxFit.cover,
@@ -207,7 +207,7 @@ void openRaceDialog() {
   );
 }
 
-void showPetDescription(Race pet){
+  void _showPetDescription(Race pet){
   showDialog(
     context: context,
     builder: (context) {
@@ -247,21 +247,21 @@ void showPetDescription(Race pet){
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       ElevatedButton(onPressed:(){
-                        openAgeDialog("Años", petList[petSelectedIndex].age);
+                        _openAgeDialog("Años", petList[petSelectedIndex].age);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent, 
                         shadowColor: Colors.transparent,
                       ), child: CounterButton(label:"Años",value: petList[petSelectedIndex].age,index: 1,),),
                       ElevatedButton(onPressed: (){
-                        openAgeDialog("Meses", petList[petSelectedIndex].month);
+                        _openAgeDialog("Meses", petList[petSelectedIndex].month);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent, 
                         shadowColor: Colors.transparent,
                       ), child: CounterButton(label:"Meses", value:petList[petSelectedIndex].month,index: 2,),),
                       ElevatedButton(onPressed: (){
-                        openAgeDialog("Dias", petList[petSelectedIndex].day);
+                        _openAgeDialog("Dias", petList[petSelectedIndex].day);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent, 
@@ -275,9 +275,12 @@ void showPetDescription(Race pet){
                 children: [
                 GestureDetector(
                   onTap: () {
-                  openRaceDialog();
+                  _openRaceDialog();
                 }, 
-                onLongPress: () => showPetDescription(petList[petSelectedIndex].race),
+                onLongPress: (){
+                  if (petList[petSelectedIndex].race.name == "") return; 
+                  _showPetDescription(petList[petSelectedIndex].race);
+                },
                 child: 
                 PetImage(race:petList[petSelectedIndex].race),
                 ),
@@ -387,13 +390,19 @@ void showPetDescription(Race pet){
             mainAxisSize: MainAxisSize.max,
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              ElevatedButton(onPressed: () {}, child: const Text("Siguiente")),
-              petSelectedIndex == 1 ? ElevatedButton(onPressed: () {
+              ElevatedButton(
+                onPressed: () {
+                  _submitForm(context);
+                }, 
+                style: ElevatedButton.styleFrom(minimumSize: const Size(150, 40)), 
+                child: const Text("Siguiente"),),
+              if (petSelectedIndex == 1) ElevatedButton(onPressed: () {
                 setState(() {
                   petList[1] = User(race: Race(description: "", image: "", name: ""), age: 0, month: 0, day: 0, gender: "hembra");
                   petSelectedIndex = 0;
                 });
-              },style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shadowColor: Colors.transparent), child: const Text("Borrar"),) : const SizedBox(width: 0,),
+              },style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shadowColor: Colors.transparent, minimumSize: const Size(75, 40)),
+              child: const Text("Borrar"),),
               
             ]),
       ))
@@ -418,8 +427,8 @@ class PetImage extends StatelessWidget {
         shape: BoxShape.circle,
         border: race.image == "" ? Border.all(color: Colors.blue.withOpacity(0.7)) : Border.all(color: Colors.transparent),
       ),
-      child: race.image != "" ? Image.network(
-        race.image,
+      child: race.image != "" ? Image(
+        image: AssetImage(race.image),
         fit: BoxFit.cover,
       ) : const Icon(Icons.pets),
     );
@@ -454,7 +463,7 @@ class PetSelector extends StatelessWidget {
       color: isSelected ? Colors.blue : Colors.blue.withOpacity(0.2),
       size: isSelected ? 30.0 : 24.0,
       
-    ) : Image.network(image,
+    ) : Image(image: AssetImage(image),
         fit: BoxFit.cover,
         opacity: const AlwaysStoppedAnimation(.3),
       ),
