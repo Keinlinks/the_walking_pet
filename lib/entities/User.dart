@@ -6,6 +6,8 @@ class User {
   int month = 0;
   int day = 0;
   String gender = "";
+  List<String> personality = [];
+  int dangerousness = 0;
 
   User({
     required this.race,
@@ -13,5 +15,7 @@ class User {
     required this.month,
     required this.day,
     required this.gender,
+    this.personality = const [],
+    this.dangerousness = 0,
   });
 }

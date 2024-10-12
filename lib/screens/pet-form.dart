@@ -16,8 +16,8 @@ class _PetFormState extends State<PetForm> {
 
   List<Race> raceListed = raceList;
 
-  List<User> petList = [User (race: Race(description: "", image: "", name: ""), age: 0, month: 0, day: 0, gender: "hembra"),
-    User (race: Race(description: "", image: "", name: ""), age: 0, month: 0, day: 0, gender: "hembra"),
+  List<User> petList = [User (race: Race(description: "", image: "", name: ""), age: 0, month: 0, day: 0, gender: "hembra", personality: []),
+    User (race: Race(description: "", image: "", name: ""), age: 0, month: 0, day: 0, gender: "hembra", personality: []),
    ];
 
   int petSelectedIndex = 0;
@@ -398,7 +398,7 @@ class _PetFormState extends State<PetForm> {
                 child: const Text("Siguiente"),),
               if (petSelectedIndex == 1) ElevatedButton(onPressed: () {
                 setState(() {
-                  petList[1] = User(race: Race(description: "", image: "", name: ""), age: 0, month: 0, day: 0, gender: "hembra");
+                  petList[1] = User(race: Race(description: "", image: "", name: ""), age: 0, month: 0, day: 0, gender: "hembra", personality: []);
                   petSelectedIndex = 0;
                 });
               },style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shadowColor: Colors.transparent, minimumSize: const Size(75, 40)),
@@ -465,7 +465,7 @@ class PetSelector extends StatelessWidget {
       
     ) : Image(image: AssetImage(image),
         fit: BoxFit.cover,
-        opacity: const AlwaysStoppedAnimation(.3),
+        opacity: !isSelected ? const AlwaysStoppedAnimation(.3) : null,
       ),
     );
   }

@@ -14,7 +14,7 @@ class MainApp extends StatelessWidget {
       home: Scaffold(
         
         resizeToAvoidBottomInset: false, 
-        appBar: AppBar(title: const Text("The Walking Pet")),
+        appBar: AppBar(title: const Text("The Walking Pet"),backgroundColor: Colors.black.withAlpha(100),),
         body: 
               const PetForm()
       ),
