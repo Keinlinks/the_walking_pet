@@ -1,6 +1,7 @@
 import 'package:the_walking_pet/entities/race.dart';
 
 class User {
+  String id = "";
   Race race = Race(name: "", description: "", image: "");
   int age = 0;
   int month = 0;
@@ -18,4 +19,8 @@ class User {
     this.personality = const [],
     this.dangerousness = 0,
   });
+
+  setId(String id){
+    this.id = id;
+  }
 }

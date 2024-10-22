@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:the_walking_pet/entities/User.dart';
 import 'package:the_walking_pet/entities/race.dart';
 import 'package:the_walking_pet/screens/main-map.dart';
@@ -26,8 +27,18 @@ class _PetFormState extends State<PetForm> {
   final max_length_description = 250;
 
 
-  void _submitForm(context){
-      Navigator.push(context, MaterialPageRoute(builder: (context) => MainMap(userPets: petList)));
+  void _submitForm(context) async {
+    LocationPermission permission = await Geolocator.checkPermission();
+     if (permission == LocationPermission.denied){
+       permission = await Geolocator.requestPermission();
+       if (permission == LocationPermission.deniedForever) {
+          return;
+       }
+       if (permission == LocationPermission.denied){
+          return;
+       }
+     }
+    Navigator.push(context, MaterialPageRoute(builder: (context) => MainMap(userPets: petList)));
   }
 
   void _openDescriptionDialog() {
