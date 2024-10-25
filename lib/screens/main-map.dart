@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -7,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:the_walking_pet/entities/ApiCalls.dart';
 import 'package:the_walking_pet/entities/User.dart';
+import 'package:the_walking_pet/entities/filters.dart';
 import 'package:the_walking_pet/services/socketService.dart';
 
 class MainMap extends StatefulWidget {
@@ -19,8 +19,9 @@ class MainMap extends StatefulWidget {
 
 class _MainMapState extends State<MainMap> {
   late SocketService socketService;
+  Filters filters = Filters();
   String id = "";
-  List<Marker> other_users_markers = [];
+  Map<String,Marker> other_users_markers = {};
   final MapController _mapController = MapController();
   StreamSubscription<Position>? _positionStream;
 
@@ -50,12 +51,80 @@ class _MainMapState extends State<MainMap> {
 
   void _openFilterDialog(){
     showDialog(context: context, builder: (context){
-      return AlertDialog(
-        title: const Text("Filtros"),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Text("Filtros"),
-          )
+      DropdownButton getDropdownFromMap(Map<String, String> filter, void Function(String?)? onChangeFunc,String value){
+        List<DropdownMenuItem<String>> keys = filter.entries.map((e) => DropdownMenuItem<String>(child:  Text(e.key), value: e.value,)).toList();
+        return DropdownButton<String>(
+          isExpanded: true,
+          value: value,
+          items: keys,
+          onChanged: onChangeFunc
+        );
+      };
+      DropdownButton getDropdownFromList(List<String> filter, void Function(String?)? onChangeFunc,String value){
+        List<DropdownMenuItem<String>> keys = filter.map((e) => DropdownMenuItem<String>(child:  Text(e), value: e,)).toList();
+        return DropdownButton<String>(
+          isExpanded: true,
+          value: value,
+          items: keys,
+          onChanged: onChangeFunc,
+        );
+      };
+
+      return StatefulBuilder(
+        builder: (BuildContext dialogContext, StateSetter builder){
+          return AlertDialog(
+          title: const Text("Filtros"),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(children: [
+              const Text("Peligrosidad"),
+              getDropdownFromMap(filters.getDangerousness(), (p0) { 
+                builder(() {
+                filters.selectedDangerousness = p0!;
+
+                });
+              }, filters.selectedDangerousness),
+              const Divider(thickness: 2,color: Color.fromARGB(20, 0, 0, 0),),
+              const Text("Genero"),
+              getDropdownFromList(filters.getGender(), (p0) {
+                builder(() {
+                filters.selectedGender = p0!;
+                }); 
+              }, filters.selectedGender),
+              const Divider(thickness: 2,color: Color.fromARGB(20, 0, 0, 0),),
+              const Text("Edad"),
+              getDropdownFromList(filters.getAge(), (p0) {
+                builder(() {
+                filters.selectedAge = p0!;
+                }); 
+              },filters.selectedAge),
+              const Divider(thickness: 2,color: Color.fromARGB(20, 0, 0, 0),),
+              const Text("Raza"),
+              getDropdownFromList(filters.getRaces().map((e) => e.name).toList(), (p0) { 
+                builder(() {
+                filters.selectedRace = p0!;
+                });
+              },filters.selectedRace),
+            ]
+            ),
+          ),
+          actions: [
+              TextButton(
+                child: const Text('Cancelar'),
+                onPressed: () => Navigator.pop(context),
+              ),
+              TextButton(
+                child: const Text('Aplicar'),
+                onPressed: () {
+                  setState(() {
+                    
+                  });
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+        );
+        }
       );
     });
   }
@@ -68,19 +137,19 @@ class _MainMapState extends State<MainMap> {
       ),
     ).doOnData((myPosition) {
       // enviar a la api 
-      ApiUpdateUserLocation payload = ApiUpdateUserLocation(id:id,latitude: myPosition.latitude,longitude: myPosition.longitude);
-      socketService.socket.emit("update_user", payload);
+      ApiUpdateUserLocation payload = ApiUpdateUserLocation(id:id,latitude: myPosition.latitude,longitude: myPosition.longitude,race: widget.userPets[0].race.name,zone: widget.userPets[0].zone,city: widget.userPets[0].city);
+      socketService.socket.emit("update_user_location", payload);
     });
-    
   }
 
+
    Stream<ApiUpdateUserLocation> stream_updateUserLocation() async*{
-     socketService.socket.on("update_user",(message){
-       ApiUpdateUserLocation payload = ApiUpdateUserLocation(id:message.id,latitude: message.latitude,longitude: message.longitude);
-       setState(() {
-         
-       });
+      final controller = StreamController<ApiUpdateUserLocation>();
+      socketService.socket.on("receive_user_location",(message){
+      ApiUpdateUserLocation payload = ApiUpdateUserLocation(id:message.id,latitude: message.latitude,longitude: message.longitude,race: message.race,zone: message.zone,city: message.city);
+      controller.add(payload);
      });
+     yield* controller.stream;
    }
 
   // void _startLocationUpdates() async {
@@ -130,7 +199,7 @@ class _MainMapState extends State<MainMap> {
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             userAgentPackageName: 'com.example.app',
             ),
-            MarkerLayer(markers: other_users_markers,),
+            MarkerLayer(markers: other_users_markers.values.toList()),
             MarkerLayer(markers: [
               markerPet(myPosition, widget.userPets[0],context, true )
               ],
@@ -141,7 +210,7 @@ class _MainMapState extends State<MainMap> {
               top: 20,
               right: 25,
               child: ElevatedButton(onPressed: (){
-              _openFilterDialog();
+                _openFilterDialog();
             },
             child: const Text("Filtros"),
             )

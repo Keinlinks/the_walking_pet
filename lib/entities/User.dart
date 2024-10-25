@@ -9,6 +9,8 @@ class User {
   String gender = "";
   List<String> personality = [];
   int dangerousness = 0;
+  String city = "";
+  String zone = "";
 
   User({
     required this.race,
