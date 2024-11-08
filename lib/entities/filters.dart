@@ -1,4 +1,4 @@
-import 'package:the_walking_pet/entities/race.dart';
+import 'package:the_walking_pet/entities/Race.dart';
 import 'package:the_walking_pet/shared/constants.dart';
 
 class Filters {
@@ -20,7 +20,7 @@ class Filters {
 
   String selectedGender = "No filtro";
 
-  final List<Race> races = raceList;
+  final List<Race> races = Constants.raceList;
 
   String selectedRace = "Labrador Retriever";
 

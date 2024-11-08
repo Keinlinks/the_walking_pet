@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:the_walking_pet/entities/Pet.dart';
 import 'package:the_walking_pet/entities/User.dart';
-import 'package:the_walking_pet/entities/race.dart';
+import 'package:the_walking_pet/entities/Race.dart';
 import 'package:the_walking_pet/screens/main-map.dart';
 import 'package:the_walking_pet/shared/constants.dart';
 class PetForm extends StatefulWidget {
@@ -14,19 +15,22 @@ class PetForm extends StatefulWidget {
 
 class _PetFormState extends State<PetForm> {
   final TextEditingController _controller = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
 
-  List<Race> raceListed = raceList;
+  late List<Race> raceList;
 
-  List<User> petList = [User (race: Race(description: "", image: "", name: ""), age: 0, month: 0, day: 0, gender: "hembra", personality: []),
-    User (race: Race(description: "", image: "", name: ""), age: 0, month: 0, day: 0, gender: "hembra", personality: []),
-   ];
+  User user = User();
 
   int petSelectedIndex = 0;
 
   final min_lines_description = 8;
   final max_length_description = 250;
 
-
+  @override
+  void initState() {
+    super.initState();
+    raceList = Constants.raceList;
+  }
   void _submitForm(context) async {
     LocationPermission permission = await Geolocator.checkPermission();
      if (permission == LocationPermission.denied){
@@ -38,7 +42,7 @@ class _PetFormState extends State<PetForm> {
           return;
        }
      }
-    Navigator.push(context, MaterialPageRoute(builder: (context) => MainMap(userPets: petList)));
+    Navigator.push(context, MaterialPageRoute(builder: (context) => MainMap(userPets: user)));
   }
 
   void _openDescriptionDialog() {
@@ -78,7 +82,42 @@ class _PetFormState extends State<PetForm> {
       },
     );
   }
-  void _openAgeDialog(String label, int value){
+void _openChangeNameDialog(Pet actualPet) {
+    TextEditingController _dialogController = TextEditingController();
+    _dialogController.text = _nameController.text;
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Ingresar Nombre'),
+          content: TextField(
+            decoration: const InputDecoration(
+              labelText: 'Nombre',
+              alignLabelWithHint: true
+            ),
+            controller: _dialogController,
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () => Navigator.pop(context),
+            ),
+            TextButton(
+              child: const Text('Guardar'),
+              onPressed: () {
+                setState(() {
+                  _nameController.text = _dialogController.text;
+                  actualPet.name = _dialogController.text;
+                });
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+  void _openAgeDialog(String label, int value,Pet actualPet){
     TextEditingController dialogController = TextEditingController();
     dialogController.text = value.toString();
     showDialog(
@@ -108,13 +147,13 @@ class _PetFormState extends State<PetForm> {
               onPressed: () {
                 setState(() {
                   if (label == "Años"){
-                    petList[petSelectedIndex].age = int.parse(dialogController.text);
+                    actualPet.age = int.parse(dialogController.text);
                   }
                   if (label == "Meses"){
-                    petList[petSelectedIndex].month = int.parse(dialogController.text);
+                    actualPet.month = int.parse(dialogController.text);
                   }
                   if (label == "Dias"){
-                    petList[petSelectedIndex].day = int.parse(dialogController.text);
+                    actualPet.day = int.parse(dialogController.text);
                   }
                 });
                 Navigator.pop(context);
@@ -125,8 +164,8 @@ class _PetFormState extends State<PetForm> {
       },
     );
   }
-  void _openRaceDialog() {
-  Race currectRace = petList[petSelectedIndex].race;
+  void _openRaceDialog(int raceId,Pet actualPet) {
+  Race currectRace = raceList.firstWhere((element) => element.id == raceId, orElse:() => raceList.firstWhere((element) => element.id == 0));
   Race dialogRace = currectRace;
   showDialog(
     context: context,
@@ -145,9 +184,10 @@ class _PetFormState extends State<PetForm> {
                 mainAxisSpacing: 4, // Espaciado entre filas
                 childAspectRatio: 0.7, // Relación de aspecto del grid
               ),
-              itemCount: raceListed.length,
+              itemCount: raceList.length - 1,
               itemBuilder: (context, index) {
-                final Race race = raceListed[index];
+                index = index + 1;
+                final Race race = raceList[index];
                 return GestureDetector(
                   onTap: () {
                     builder(() {
@@ -156,7 +196,7 @@ class _PetFormState extends State<PetForm> {
                     });
                   },
                   onLongPress: () {
-                    _showPetDescription(race);
+                    _showRaceDescription(race);
                   },
                   
                   child: Container(
@@ -206,7 +246,7 @@ class _PetFormState extends State<PetForm> {
               child: const Text('Guardar'),
               onPressed: () {
                 setState(() {
-                  petList[petSelectedIndex].race = dialogRace;
+                  actualPet.raceId = dialogRace.id;
                 });
                 Navigator.pop(context);
               },
@@ -218,13 +258,13 @@ class _PetFormState extends State<PetForm> {
   );
 }
 
-  void _showPetDescription(Race pet){
+  void _showPetDescription(Pet pet){
   showDialog(
     context: context,
     builder: (context) {
       return AlertDialog(
         title: Text(pet.name),
-        content: Text(pet.description),
+        content: Text(pet.description == "" ? "No hay descripción" : pet.description),
         actions: [
           TextButton(
             child: const Text('Cerrar'),
@@ -235,13 +275,39 @@ class _PetFormState extends State<PetForm> {
     },
   );
 }
-
+  void _showRaceDescription(Race race){
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: Text(race.name),
+        content: Text(race.description == "" ? "No hay descripción" : race.description),
+        actions: [
+          TextButton(
+            child: const Text('Cerrar'),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      );
+    },
+  );
+}
   @override
   Widget build(BuildContext context) {
-    if (petList[0].race.name == "") {
-      petList[0].race = raceListed[0];
+    Pet actualPet;
+    if (petSelectedIndex == 0){
+      actualPet = user.pet_1;
+      
     }
-
+    else {
+      actualPet = user.pet_2;
+    }
+    List<Race>raceList = Constants.raceList;
+    _nameController.text = actualPet.name;
+    _controller.text = actualPet.description;
+    Race firstRace = raceList.firstWhere((element) => element.id == user.pet_1.raceId, orElse:() => raceList.firstWhere((element) => element.id == 1));
+    Race secondRace = raceList.firstWhere((element) => element.id == user.pet_2.raceId, orElse:() => raceList.firstWhere((element) => element.id == 0));
+    Race actualRace = raceList.firstWhere((element) => element.id == actualPet.raceId, orElse:() => raceList.firstWhere((element) => element.id == 0));
     return SafeArea(
         child: Column(mainAxisSize: MainAxisSize.max, children: [
       const SizedBox(height: 10,),
@@ -258,26 +324,26 @@ class _PetFormState extends State<PetForm> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       ElevatedButton(onPressed:(){
-                        _openAgeDialog("Años", petList[petSelectedIndex].age);
+                        _openAgeDialog("Años", actualPet.age,actualPet);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent, 
                         shadowColor: Colors.transparent,
-                      ), child: CounterButton(label:"Años",value: petList[petSelectedIndex].age,index: 1,),),
+                      ), child: CounterButton(label:"Años",value: actualPet.age,index: 1,),),
                       ElevatedButton(onPressed: (){
-                        _openAgeDialog("Meses", petList[petSelectedIndex].month);
+                        _openAgeDialog("Meses", actualPet.month,actualPet);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent, 
                         shadowColor: Colors.transparent,
-                      ), child: CounterButton(label:"Meses", value:petList[petSelectedIndex].month,index: 2,),),
+                      ), child: CounterButton(label:"Meses", value:actualPet.month,index: 2,),),
                       ElevatedButton(onPressed: (){
-                        _openAgeDialog("Dias", petList[petSelectedIndex].day);
+                        _openAgeDialog("Dias", actualPet.day,actualPet);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent, 
                         shadowColor: Colors.transparent,
-                      ), child: CounterButton(label:"Dias", value:petList[petSelectedIndex].day),)
+                      ), child: CounterButton(label:"Dias", value:actualPet.day),)
                     ]
                   ),
                 )
@@ -286,17 +352,17 @@ class _PetFormState extends State<PetForm> {
                 children: [
                 GestureDetector(
                   onTap: () {
-                  _openRaceDialog();
+                  _openRaceDialog(actualPet.raceId,actualPet);
                 }, 
                 onLongPress: (){
-                  if (petList[petSelectedIndex].race.name == "") return; 
-                  _showPetDescription(petList[petSelectedIndex].race);
+                  if (actualPet.raceId == 0) return; 
+                  _showPetDescription(actualPet);
                 },
                 child: 
-                PetImage(race:petList[petSelectedIndex].race),
+                PetImage(raceId: actualPet.raceId),
                 ),
                 const SizedBox(height: 10,),
-                Text(petList[petSelectedIndex].race.name == "" ? "Selecciona una raza" : petList[petSelectedIndex].race.name, 
+                Text(actualRace.name == "" ? "Selecciona una raza" : actualRace.name, 
                 style: const TextStyle(fontSize: 12, color: Colors.black,fontWeight: FontWeight.bold)),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -305,11 +371,11 @@ class _PetFormState extends State<PetForm> {
                   ElevatedButton.icon(
                     onPressed: (){
                       setState(() {
-                          petList[petSelectedIndex].gender = "macho";
+                          actualPet.gender = true;
                       });
                     },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: petList[petSelectedIndex].gender == "macho" ? Colors.blue : Colors.blue.withOpacity(0.2),
+                    backgroundColor: actualPet.gender ? Colors.blue : Colors.blue.withOpacity(0.2),
                     shadowColor: Colors.transparent,
                   ),
                   label: const Text("Macho"),
@@ -320,12 +386,12 @@ class _PetFormState extends State<PetForm> {
                     label: const Text("hembra"),
                     icon: const Icon(Icons.female),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: petList[petSelectedIndex].gender == "hembra" ? Colors.pinkAccent : Colors.pinkAccent.withOpacity(0.2),
+                      backgroundColor: !actualPet.gender ? Colors.pinkAccent : Colors.pinkAccent.withOpacity(0.2),
                       shadowColor: Colors.transparent,
                     ),
                     onPressed: (){
                       setState(() {
-                        petList[petSelectedIndex].gender = "hembra";
+                        actualPet.gender = false;
                       });
                     }),
                 ],)
@@ -346,7 +412,7 @@ class _PetFormState extends State<PetForm> {
                     backgroundColor: Colors.transparent, 
                     shadowColor: Colors.transparent,
                   ),
-                  child: PetSelector(isSelected: (petSelectedIndex == 0), image: petList[0].race.image,)),
+                  child: PetSelector(isSelected: (petSelectedIndex == 0), image: firstRace.image,)),
                   const SizedBox(height: 15,),
                   ElevatedButton(onPressed: (){
                     setState(() {
@@ -357,7 +423,7 @@ class _PetFormState extends State<PetForm> {
                     backgroundColor: Colors.transparent, 
                     shadowColor: Colors.transparent,
                   ),
-                  child:  PetSelector(isSelected:(petSelectedIndex == 1), image: petList[1].race.image,)),
+                  child:  PetSelector(isSelected:(petSelectedIndex == 1), image: secondRace.image,)),
                 ],
               )),
             ],
@@ -369,29 +435,80 @@ class _PetFormState extends State<PetForm> {
         color: Color.fromARGB(20, 0, 0, 0),
       ),
       Expanded(
-        flex: 7,
-        child: TextFormField(
-          controller: _controller,
-          maxLength: max_length_description,
-          readOnly: true,
-          minLines: min_lines_description,
-          onTap: _openDescriptionDialog,
-          maxLines: null,
-          decoration: InputDecoration(
-            isDense: true,
-            filled: true,
-            labelText: "Descripción",
-            alignLabelWithHint: true,
-            hintText: "Escribe una descripcion",
-            enabledBorder: OutlineInputBorder(
-              borderSide: const BorderSide(
-                color: Color.fromARGB(20, 0, 0, 0),
-                width: 2,
-                style: BorderStyle.solid,
+        flex: 5,
+        child: Column(
+          children: [
+            const SizedBox(height: 10,),
+            TextField(
+              decoration: const InputDecoration(
+                labelText: "Nombre",
+                alignLabelWithHint: true,
+                isDense: true,
+                
+                filled: true,
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: Color.fromARGB(20, 0, 0, 0),
+                    width: 2,
+                    style: BorderStyle.solid,
+                    
+                  ),
+                ),
+    
               ),
-              borderRadius: BorderRadius.circular(8),
+              controller: _nameController,
+              readOnly: true,
+              onTap: () => _openChangeNameDialog(actualPet),
+              
             ),
-          ),
+            const SizedBox(height: 10,),
+            TextFormField(
+              controller: _controller,
+              maxLength: max_length_description,
+              readOnly: true,
+              minLines: min_lines_description,
+              onTap: _openDescriptionDialog,
+              maxLines: null,
+              decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                labelText: "Descripción",
+                alignLabelWithHint: true,
+                hintText: "Escribe una descripcion",
+                enabledBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(
+                    color: Color.fromARGB(20, 0, 0, 0),
+                    width: 2,
+                    style: BorderStyle.solid,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      Flexible(
+        flex: 2,
+        child: Column(
+          children: [
+            
+            const Text("Peligrosidad"),
+            const SizedBox(height: 10,),
+            DropdownButton(
+              value: actualPet.dangerousness.toString(),
+              style: const TextStyle(fontSize: 12,color: Colors.black,fontWeight: FontWeight.bold,),
+              
+              items: const [DropdownMenuItem<String>(child: Text("0",),value: "0",),DropdownMenuItem<String>(child: Text("1",),value: "1",), DropdownMenuItem<String>(child: Text("2",),value: "2",), DropdownMenuItem<String>(child: Text("3",),value: "3",), DropdownMenuItem<String>(child: Text("4",),value: "4",), DropdownMenuItem<String>(child: Text("5",),value: "5",), DropdownMenuItem<String>(child: Text("6",),value: "6",), DropdownMenuItem<String>(child: Text("7",),value: "7",), DropdownMenuItem<String>(child: Text("8",),value: "8",), DropdownMenuItem<String>(child: Text("9",),value: "9",), DropdownMenuItem<String>(child: Text("10",),value: "10",),],
+              onChanged: (value) {
+                setState(() {
+                  int dangerousness = int.parse(value!);
+                  actualPet.dangerousness = dangerousness;
+                });
+              },
+              
+            ),
+          ],
         ),
       ),
       Flexible(
@@ -409,7 +526,7 @@ class _PetFormState extends State<PetForm> {
                 child: const Text("Siguiente"),),
               if (petSelectedIndex == 1) ElevatedButton(onPressed: () {
                 setState(() {
-                  petList[1] = User(race: Race(description: "", image: "", name: ""), age: 0, month: 0, day: 0, gender: "hembra", personality: []);
+                  user.pet_2 = Pet();
                   petSelectedIndex = 0;
                 });
               },style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shadowColor: Colors.transparent, minimumSize: const Size(75, 40)),
@@ -422,14 +539,16 @@ class _PetFormState extends State<PetForm> {
 }
 
 class PetImage extends StatelessWidget {
-  final Race race;
+  final int raceId;
   const PetImage({
     super.key,
-    required this.race
+    required this.raceId
   });
 
   @override
   Widget build(BuildContext context) {
+    List<Race> raceList = Constants.raceList;
+    Race race = raceList.firstWhere((element) => element.id == raceId, orElse:() => raceList.firstWhere((element) => element.id == 0));
     return Container(
       width: 150,
       height: 150,
