@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:socket_io_client/socket_io_client.dart';
 import 'package:the_walking_pet/entities/ApiCalls.dart';
 import 'package:the_walking_pet/entities/Pet.dart';
 import 'package:the_walking_pet/entities/Race.dart';
@@ -11,10 +13,11 @@ import 'package:the_walking_pet/entities/User.dart';
 import 'package:the_walking_pet/entities/filters.dart';
 import 'package:the_walking_pet/services/socketService.dart';
 import 'package:the_walking_pet/shared/constants.dart';
+import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 
 
 class LatLngAndMarker {
-  LatLng position;
+  late LatLng position;
   Marker marker;
   User user;
 
@@ -23,20 +26,36 @@ class LatLngAndMarker {
 
 class GlobalState {
   Map<String,LatLngAndMarker> other_users_markers = {};
-  late Position myPosition;
+  Position? myPosition;
+  String? id;
+
+
   GlobalState();
 
   setMyPosition(Position myPosition){
     this.myPosition = myPosition;
   }
+  setId(String id){
+    this.id = id;
+  }
   setOtherUsersMarkers(Map<String,LatLngAndMarker> other_users_markers){
     this.other_users_markers = other_users_markers;
   }
 
-  updateOtherUser(UserDataExtended otherUserData,BuildContext context){
-    if (other_users_markers.containsKey(otherUserData.id)){
-      other_users_markers[otherUserData.id]?.marker = markerPet(other_users_markers[otherUserData.id]!.position, other_users_markers[otherUserData.id]!.user, false,context);
+  updateOtherUser(String id, latitude,longitude,BuildContext context){
+    if (other_users_markers.containsKey(id)){
+      print("se actualizo la posicion de ${id}");
+      LatLngAndMarker m = other_users_markers[id]!;
+      m.position = LatLng(latitude,longitude);
+      m.marker = markerPet(m.position, m.user, false,context);
       }
+  }
+
+  removeOtherUser(String id){
+    if (other_users_markers.containsKey(id)){
+      print("se elimino el usuario ${id}");
+      other_users_markers.remove(id);
+    }
   }
 }
 
@@ -50,30 +69,28 @@ class MainMap extends StatefulWidget {
 
 class _MainMapState extends State<MainMap> {
   late SocketService socketService;
+  bool isIdentify = false;
   Filters filters = Filters();
-  String id = "";
+  late Future<bool> idLoaded;
   Map<String,LatLngAndMarker> other_users_markers = {};
   final MapController _mapController = MapController();
   StreamSubscription<Position>? _positionStream;
+  bool isloaded = false;
 
   GlobalState globalState = GlobalState();
 
   @override
   void initState() {
     super.initState();
+    if(!widget.userPets.completedForm) Navigator.pop(context);
     socketService = SocketService();
-    print(widget.userPets.toJson());
-    socketService.identify(widget.userPets.toJson());
-
-    socketService.socket.on("selfId",(data){
-      print(data);
-      id = data.id;
-      print("selfId: $id");
+    socketService.socket.onDisconnect((data) {
+      print("Disconnected");
     });
-  }
-
-  void addUser(){
-
+    socketService.socket.onError((data) {
+       print("Error conectando: $data");
+       Navigator.pop(context);
+       });
   }
 
   @override
@@ -173,16 +190,38 @@ class _MainMapState extends State<MainMap> {
     });
   }
 
+  Future<void> futureGetId() async {
+  final completer = Completer<void>();
+  socketService.socket.on("selfId", (data) {
+    if (completer.isCompleted) return;
+    globalState.setId(data["token"]);
+    widget.userPets.setId(data["token"]);
+    completer.complete();
+  });
+  socketService.socket.emit("selfId");
+
+  return completer.future;
+}
+  
   Stream<GlobalState> stream_myPosition() {
+    if (widget.userPets.id == "") return Stream.empty();
     return Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 10,
       ),
     ).doOnData((myPosition) {
+      print("combio mi posicion: ${myPosition.latitude} ${myPosition.longitude}");
+      ApiUpdateUserLocation payload = ApiUpdateUserLocation(id:widget.userPets.id,latitude: myPosition.latitude,longitude: myPosition.longitude,city: widget.userPets.city);
+
+      if (!isIdentify){
+      socketService.socket.emit("identify", [widget.userPets.toJson(),payload.toJson()]);
+      isIdentify = true;
+      return;
+      }
       // enviar a la api 
-      ApiUpdateUserLocation payload = ApiUpdateUserLocation(id:id,latitude: myPosition.latitude,longitude: myPosition.longitude,city: widget.userPets.city);
-      socketService.socket.emit("update_user_location", payload);
+
+      socketService.socket.emit("update_user_location", payload.toJson());
     }).transform(StreamTransformer<Position, GlobalState>.fromHandlers(handleData: (myPosition, sink) {
         globalState.setMyPosition(myPosition);
         sink.add(globalState);
@@ -192,15 +231,23 @@ class _MainMapState extends State<MainMap> {
   Stream<GlobalState> stream_getNewUser() async*{
     final controller = StreamController<GlobalState>();
       socketService.socket.on("receive_userData",(newUserData){
+      print("recibiendo nuevo usuario: ${newUserData['id']}");
       
-      UserDataExtended(id: newUserData.id,latitude: newUserData.latitude,longitude: newUserData.longitude,
-      city: newUserData.city,pet_1: newUserData.pet_1,pet_2: newUserData.pet_2);
-      if (other_users_markers.containsKey(newUserData.id)){
+      if (other_users_markers.containsKey(newUserData['id'])){
+      print("usuario antiguo");
         
       }
-      else{
-        Marker newMarker = markerPet(LatLng(newUserData.latitude, newUserData.longitude), newUserData, false,context);
-        other_users_markers[newUserData.id] = LatLngAndMarker(LatLng(newUserData.latitude, newUserData.longitude),newMarker,newUserData);
+      else if (mounted){
+        User user = User.fromJson(newUserData);
+        print("usuario nuevo");
+        Marker newMarker = markerPet(LatLng(newUserData['latitude'], newUserData['longitude']), user, false,context);
+        other_users_markers[newUserData['id']] = LatLngAndMarker(LatLng(newUserData['latitude'], newUserData['longitude']),newMarker,user);
+        globalState.setOtherUsersMarkers( other_users_markers);
+        ApiUpdateUserLocation payload = ApiUpdateUserLocation.withReceiver(widget.userPets.id,globalState.myPosition!.latitude,globalState.myPosition!.longitude,widget.userPets.city,newUserData['id']);
+        
+        String myUser = widget.userPets.toJson();
+        print("emitiendo datos a :${newUserData['id']}");
+        socketService.socket.emit("update_userdata_to_user", [myUser,payload.toJson(),]);
       }
       controller.add(globalState);
      });
@@ -210,19 +257,30 @@ class _MainMapState extends State<MainMap> {
    Stream<GlobalState> stream_updateOtherUserLocation() async*{
       final controller = StreamController<GlobalState>();
       socketService.socket.on("receive_user_location",(otherUserData){
-      ApiUpdateUserLocation(id:otherUserData.id,latitude: otherUserData.latitude,longitude: otherUserData.longitude,city: otherUserData.city);
-      if (other_users_markers.containsKey(otherUserData.id)){
-      other_users_markers[otherUserData.id]?.marker = markerPet(other_users_markers[otherUserData.id]!.position, other_users_markers[otherUserData.id]!.user, false,context);
+        print("recibido user_location ${otherUserData}");
+      ApiUpdateUserLocation(id:otherUserData['id'],latitude: otherUserData['latitude'],longitude: otherUserData['longitude'],city: otherUserData['city']);
+      if (other_users_markers.containsKey(otherUserData['id']) && mounted){
+      globalState.updateOtherUser(otherUserData['id'], otherUserData["latitude"], otherUserData["longitude"], context);
       }
       controller.add(globalState);
      });
      yield* controller.stream;
    }
 
-
+   Stream<GlobalState> stream_remove() async*{
+      final controller = StreamController<GlobalState>();
+      socketService.socket.on("remove_user",(otherUserData){
+        print("recibido remove_user ${otherUserData}");
+      globalState.removeOtherUser(otherUserData['id']);
+      controller.add(globalState);
+     });
+     yield* controller.stream;
+   }
 
   @override
   Widget build(BuildContext context) {
+    if(!widget.userPets.completedForm) Navigator.pop(context);
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text("Iquique"),
@@ -230,64 +288,82 @@ class _MainMapState extends State<MainMap> {
         elevation: 0,
         centerTitle: true,
       ),
-      body: StreamBuilder<GlobalState>(
-        stream: MergeStream([stream_myPosition(),stream_updateOtherUserLocation()]),
-        builder:(BuildContext context, AsyncSnapshot<GlobalState> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator()); // Cargando
-        } else if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}')); // Error
-        }
-          if(snapshot.data != null){
-          LatLng myPosition = LatLng(snapshot.data!.myPosition.latitude, snapshot.data!.myPosition.longitude);
-          return Stack(
-          children: [FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(initialCenter: myPosition, initialZoom: 18,),
-            children: [TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.example.app',
-            ),
-            MarkerLayer(markers: snapshot.data?.other_users_markers.values.toList().map((e) => e.marker).toList() ?? []),
-            MarkerLayer(markers: [
-              markerPet(myPosition, widget.userPets, true,context )
-              ],
-            ),
-          ],
-            ),
-            Positioned(
-              top: 20,
-              right: 25,
-              child: ElevatedButton(onPressed: (){
-                _openFilterDialog();
-            },
-            child: const Text("Filtros"),
-            )
+      body: FutureBuilder(
+        future: futureGetId(),
+        builder:(context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator()); // Cargando
+          }
+          return StreamBuilder<GlobalState>(
+          stream: MergeStream([stream_myPosition(),stream_updateOtherUserLocation(),stream_getNewUser(),stream_remove()]),
+          builder:(BuildContext contextStream, AsyncSnapshot<GlobalState> snapshot) {
+
+            if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator()); // Cargando
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}')); // Error
+          }
+            if(snapshot.data != null && mounted && snapshot.data!.id != "" && snapshot.data!.myPosition != null){
+              if(snapshot.data!.other_users_markers.length != 0){
             
-            ),
-          Positioned(
-            bottom: 50,
-            right: 25,
-            child: GestureDetector(onTap: (){
-              _moveCamera(myPosition);
-            }, child: Container(
-              width: 50,
-              height: 50,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: Colors.blue,
-                borderRadius: BorderRadius.circular(50),
+      
+              }
+            
+            LatLng myPosition = LatLng(snapshot.data!.myPosition!.latitude, snapshot.data!.myPosition!.longitude);
+            return Stack(
+            children: [FlutterMap(
+              
+              mapController: _mapController,
+              options: MapOptions(initialCenter: myPosition, initialZoom: 18,),
+              children: [TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.thewalkingpet.app',
+              errorTileCallback: (tile, error, stackTrace) => const Icon(Icons.error),
+              tileProvider: NetworkTileProvider(),
+              
               ),
-              child: const Icon(Icons.location_on, color: Colors.white, size: 30,),),)
-            )
-            ]
+              MarkerLayer(markers: snapshot.data?.other_users_markers.values.toList().map((e) => e.marker).toList() ?? []),
+              MarkerLayer(markers: [
+                markerPet(myPosition, widget.userPets, true,context )
+                ],
+              ),
+            ],
+              ),
+              Positioned(
+                top: 20,
+                right: 25,
+                child: ElevatedButton(onPressed: (){
+                  _openFilterDialog();
+              },
+              child: const Text("Filtros"),
+              )
+              
+              ),
+            Positioned(
+              bottom: 50,
+              right: 25,
+              child: GestureDetector(onTap: (){
+                _moveCamera(myPosition);
+              }, child: Container(
+                width: 50,
+                height: 50,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: const Icon(Icons.location_on, color: Colors.white, size: 30,),),)
+              )
+              ]
+          );
+        }
+        else{
+          return const Center(child: CircularProgressIndicator());
+        }
+        }
         );
-      }
-      else{
-        return const Center(child: Text("No hay posicion"));
-      }
-  }
-  )
+        }
+      )
     
 );
   }
@@ -324,7 +400,7 @@ void _openPetDialog(BuildContext context) {
     builder: (BuildContext context) {
       return AlertDialog(
         title: Text(
-          "Peligrosidad media: ${dangerousness_mean.toStringAsFixed(2)}",
+          "Peligrosidad media: ${dangerousness_mean.toStringAsFixed(1)}",
           textAlign: TextAlign.center,
         ),
         content: SizedBox(

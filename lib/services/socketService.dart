@@ -10,16 +10,13 @@ class SocketService {
 
   SocketService(){
     socket = IO.io(_socketUrl,
-    IO.OptionBuilder().setTransports(['websocket']).disableAutoConnect().build()
-  );
-  socket.connect();
-    print("Socket created");
-    socket.onConnect((_){
-      print("Connected");
-    });
+      IO.OptionBuilder().setTransports(['websocket']).disableAutoConnect().build()
+    );
+    socket.connect();
+
     socket.onDisconnect((_){
-      print("Disconnected");
-    });
+        print("Disconnected");
+      });
     socket.onError((data) => print("Error conectando: $data"));
   }
 

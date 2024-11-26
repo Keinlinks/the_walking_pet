@@ -42,6 +42,7 @@ class _PetFormState extends State<PetForm> {
           return;
        }
      }
+     user.completedForm = true;
     Navigator.push(context, MaterialPageRoute(builder: (context) => MainMap(userPets: user)));
   }
 
@@ -375,7 +376,7 @@ void _openChangeNameDialog(Pet actualPet) {
                       });
                     },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: actualPet.gender ? Colors.blue : Colors.blue.withOpacity(0.2),
+                    backgroundColor: actualPet.gender ? Colors.blue : Colors.blue.withOpacity(0.1),
                     shadowColor: Colors.transparent,
                   ),
                   label: const Text("Macho"),
@@ -386,7 +387,7 @@ void _openChangeNameDialog(Pet actualPet) {
                     label: const Text("hembra"),
                     icon: const Icon(Icons.female),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: !actualPet.gender ? Colors.pinkAccent : Colors.pinkAccent.withOpacity(0.2),
+                      backgroundColor: !actualPet.gender ? Colors.pinkAccent : Colors.pinkAccent.withOpacity(0.1),
                       shadowColor: Colors.transparent,
                     ),
                     onPressed: (){

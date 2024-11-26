@@ -7,6 +7,7 @@ class ApiUpdateUserLocation{
   double latitude = 0.0;
   double longitude = 0.0;
   String city = "";
+  String receiver = "";
 
   ApiUpdateUserLocation({
     id,
@@ -20,12 +21,21 @@ class ApiUpdateUserLocation{
     this.city = city;
   }
 
+  static ApiUpdateUserLocation withReceiver(String id, double latitude, double longitude, String city, String receiver){
+    ApiUpdateUserLocation payload = ApiUpdateUserLocation(id: id, latitude: latitude, longitude: longitude, city: city);
+    payload.receiver = receiver;
+    print(payload.receiver);
+    return payload;
+  }
+
    Map<String, dynamic> toMap() {
+
     return {
       'id': id,
       'latitude': latitude,
       'longitude': longitude,
       'city': city,
+      'receiver': receiver,
     };
   }
 
