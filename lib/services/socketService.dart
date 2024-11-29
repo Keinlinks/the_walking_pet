@@ -8,9 +8,9 @@ class SocketService {
   late IO.Socket socket;
 
   SocketService(){    
-    if (kDebugMode){
-      _socketUrl = _socketUrlDebug;
-    }
+    // if (kDebugMode){
+    //   _socketUrl = _socketUrlDebug;
+    // }
     if (kDebugMode) {
       print(_socketUrl);
     }
@@ -19,9 +19,5 @@ class SocketService {
       IO.OptionBuilder().setTransports(['websocket']).disableAutoConnect().build()
     );
     socket.connect();
-  }
-
-  void identify(String userData){
-    socket.emit("identify", userData);
   }
 }

@@ -360,14 +360,18 @@ void _openChangeNameDialog(Pet actualPet) {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(5, 0, 0, 0),
                   child: Column(
+                    
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       ElevatedButton(onPressed:(){
                         _openAgeDialog("Años", actualPet.age,actualPet);
                       },
+
                       style: ElevatedButton.styleFrom(
+                        
                         backgroundColor: Colors.transparent, 
                         shadowColor: Colors.transparent,
+                        
                       ), child: CounterButton(label:"Años",value: actualPet.age,index: 1,),),
                       ElevatedButton(onPressed: (){
                         _openAgeDialog("Meses", actualPet.month,actualPet);

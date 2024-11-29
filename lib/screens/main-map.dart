@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:deepcopy/deepcopy.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -28,6 +29,7 @@ class LatLngAndMarker {
 class GlobalState {
   Map<String,LatLngAndMarker> other_users_markers = {};
   Position? myPosition;
+  bool adviceJustDAngerous = false;
   String? id;
   Map<String,LatLngAndMarker> other_users_markersFiltered = {};
   Filters filters = Filters();
@@ -92,6 +94,7 @@ class _MainMapState extends State<MainMap> {
   final MapController _mapController = MapController();
   StreamSubscription<Position>? _positionStream;
   bool isloaded = false;
+  late FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
 
   List<String> dangersId = [];
 
@@ -101,6 +104,7 @@ class _MainMapState extends State<MainMap> {
   @override
   void initState() {
     super.initState();
+    _initializeNotifications();
     controllerFilters = StreamController<GlobalState>();
     if(!widget.userPets.completedForm) Navigator.pop(context);
     socketService = SocketService();
@@ -109,8 +113,24 @@ class _MainMapState extends State<MainMap> {
     });
     socketService.socket.onError((data) {
        print("Error conectando: $data");
-       if (mounted) Navigator.pop(context);
-       });
+       if (mounted) {
+        showDialog(context: context, builder: (context) {
+          return AlertDialog(
+            title: const Text("Error"),
+            content: const Text("Error conectando con el servidor, intenta de nuevo en unos minutos"),
+            actions: [
+              TextButton(
+                child: const Text('Cerrar'),
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          );
+        });
+       }
+      });
   }
 
   @override
@@ -119,6 +139,45 @@ class _MainMapState extends State<MainMap> {
     controllerFilters.close();
     socketService.socket.disconnect();
     super.dispose();
+  }
+
+
+  void _initializeNotifications() {
+    flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+    const androidInitializationSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const initializationSettings = InitializationSettings(
+      android: androidInitializationSettings,
+    );
+
+    flutterLocalNotificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: _onNotificationResponse,
+    );
+  }
+  void _onNotificationResponse(NotificationResponse response) {
+    openDangersDialog(context);
+  }
+
+  Future<void> _showNotification() async {
+    const androidDetails = AndroidNotificationDetails(
+      'channel_id',
+      'channel_name',
+      channelDescription: 'Alerta de mascota cerca',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const notificationDetails = NotificationDetails(android: androidDetails);
+
+    await flutterLocalNotificationsPlugin.show(
+      0,
+      'Alerta The Walking Pet',
+      'Hay mascotas cerca',
+      notificationDetails,
+    );
   }
   
   void _moveCamera(LatLng position) {
@@ -158,7 +217,6 @@ class _MainMapState extends State<MainMap> {
 
                 });
               }, filtersCopy.selectedDangerousness),
-              const Divider(thickness: 2,color: Color.fromARGB(20, 0, 0, 0),),
               const Text("Genero"),
               getDropdownFromList(globalState.filters.getGender(), (p0) {
                 builder(() {
@@ -227,7 +285,7 @@ class _MainMapState extends State<MainMap> {
   
   Stream<GlobalState> stream_myPosition() {
     
-    if (widget.userPets.id == "") return Stream.empty();
+    if (widget.userPets.id == "") return const Stream.empty();
     return Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
@@ -292,6 +350,7 @@ class _MainMapState extends State<MainMap> {
       final controller = StreamController<GlobalState>();
       socketService.socket.on("remove_user",(otherUserData){
       globalState.removeOtherUser(otherUserData['id']);
+      dangersId.remove(otherUserData['id']);
       controller.add(globalState);
      });
      yield* controller.stream;
@@ -301,6 +360,7 @@ class _MainMapState extends State<MainMap> {
 
     LatLng l1 = LatLng(latLngAndMarker.position.latitude, latLngAndMarker.position.longitude);
     LatLng l2 = LatLng(globalState.myPosition!.latitude, globalState.myPosition!.longitude);
+    if (globalState.adviceJustDAngerous && latLngAndMarker.user.pet_1.dangerousness == "Amigable") return;
     num distanceInMeters = geodesy.distanceBetweenTwoGeoPoints(l1, l2);
     if (distanceInMeters > globalState.adviceDistanceInMeter) {
       latLngAndMarker.adviced = false;
@@ -314,12 +374,15 @@ class _MainMapState extends State<MainMap> {
       dangersId.add(latLngAndMarker.user.id);
     }
     if (globalState.vibrator) HapticFeedback.vibrate();
+
+    _showNotification();
   }
   void evaluate_dangersWithAll(){
       for (var key in globalState.other_users_markers.keys){
         evaluate_dangers(globalState.other_users_markers[key]!);
       }
   }
+  
 
   openDangersDialog(BuildContext context){
     List<Race>raceList = Constants.raceList;
@@ -383,9 +446,12 @@ class _MainMapState extends State<MainMap> {
                   final LatLngAndMarker latLngAndMarker = globalState.other_users_markers[dangersId[index]]!;
                   Race race_1 = raceList.firstWhere((element) => element.id == latLngAndMarker.user.pet_1.raceId);
                   return GestureDetector(
-                    onTap: () {},
-                    onLongPress: () {
+                    onTap: () {
+                      Navigator.pop(context);
                       _moveCamera(latLngAndMarker.position);
+                    },
+                    onLongPress: () {
+                      
                     },
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,

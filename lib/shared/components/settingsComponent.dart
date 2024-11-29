@@ -27,15 +27,26 @@ class _SettingsWidgetState extends State<SettingsWidget> {
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
               labelText: "Distancia máxima de peligrosidad",
-              alignLabelWithHint: true
+              alignLabelWithHint: true,
+              suffix: Text("metros"),
             ),
             onChanged: (value) => widget.globalState.adviceDistanceInMeter = int.parse(value),
             controller: _controller,
             readOnly: false,
           ),
           const SizedBox(height: 20,),
-          Row(mainAxisAlignment: MainAxisAlignment.start, children: [const Text("Vibrar"),Checkbox(value: widget.globalState.vibrator, onChanged: (value) => widget.globalState.vibrator = value!,)],)
-          ,
+          Flex(
+            direction: Axis.horizontal,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Vibrar"),Checkbox(value: widget.globalState.vibrator, onChanged: (value) => setState(() {
+              widget.globalState.vibrator = value!;
+            }),)],),
+          const SizedBox(height: 20,),
+          Flex(
+            direction: Axis.horizontal,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Solo alertas de peligrosidad"),Checkbox(value: widget.globalState.adviceJustDAngerous, onChanged: (value) => setState(() {
+              widget.globalState.adviceJustDAngerous = value!;
+            }),)],),
+          
     ],);
   }
 }

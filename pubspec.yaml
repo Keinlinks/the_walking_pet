@@ -18,7 +18,7 @@ dependencies:
   flutter_map_tile_caching: ^9.0.0-dev.5
   deepcopy: ^1.1.2
   geodesy: ^0.10.2
-  vibration: ^2.0.1
+  flutter_local_notifications: ^18.0.1
   
 
 dev_dependencies:
