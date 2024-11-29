@@ -12,6 +12,7 @@ import 'package:the_walking_pet/entities/Race.dart';
 import 'package:the_walking_pet/entities/User.dart';
 import 'package:the_walking_pet/entities/filters.dart';
 import 'package:the_walking_pet/services/socketService.dart';
+import 'package:the_walking_pet/shared/components/settingsComponent.dart';
 import 'package:the_walking_pet/shared/constants.dart';
 import 'package:geodesy/geodesy.dart';
 
@@ -31,6 +32,7 @@ class GlobalState {
   Map<String,LatLngAndMarker> other_users_markersFiltered = {};
   Filters filters = Filters();
   num adviceDistanceInMeter = 150;
+  bool vibrator = true;
   GlobalState();
 
   setMyPosition(Position myPosition){
@@ -311,7 +313,7 @@ class _MainMapState extends State<MainMap> {
     if (!dangersId.contains(latLngAndMarker.user.id)) {
       dangersId.add(latLngAndMarker.user.id);
     }
-    HapticFeedback.vibrate();
+    if (globalState.vibrator) HapticFeedback.vibrate();
   }
   void evaluate_dangersWithAll(){
       for (var key in globalState.other_users_markers.keys){
@@ -433,6 +435,23 @@ class _MainMapState extends State<MainMap> {
 );
   }
 
+openSettingsDialog(BuildContext context){
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Ajustes"),
+          content: SettingsWidget(globalState: globalState,),
+          actions: [
+            TextButton(
+              child: const Text('Guardar'),
+              onPressed: () => Navigator.pop(context),
+            ),
+            ]
+          );
+    }
+  );
+}
 
 
   @override
@@ -524,6 +543,23 @@ class _MainMapState extends State<MainMap> {
 
                 ),
                 child: const Icon(Icons.warning, color: Colors.white, size: 25,),),)
+              ),
+              Positioned(
+              top: 20,
+              left: 95,
+              child: GestureDetector(onTap: (){
+                openSettingsDialog(context);
+              }, child: Container(
+                width: 50,
+                height: 50,
+                clipBehavior: Clip.antiAlias,
+
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey,
+                  borderRadius: BorderRadius.circular(50),
+
+                ),
+                child: const Icon(Icons.settings, color: Colors.white, size: 25,),),)
               )
               ]
           );
