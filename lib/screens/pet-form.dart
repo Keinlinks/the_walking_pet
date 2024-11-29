@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -5,6 +7,7 @@ import 'package:the_walking_pet/entities/Pet.dart';
 import 'package:the_walking_pet/entities/User.dart';
 import 'package:the_walking_pet/entities/Race.dart';
 import 'package:the_walking_pet/screens/main-map.dart';
+import 'package:the_walking_pet/shared/components/personalityForm.dart';
 import 'package:the_walking_pet/shared/constants.dart';
 class PetForm extends StatefulWidget {
   const PetForm({super.key});
@@ -44,6 +47,18 @@ class _PetFormState extends State<PetForm> {
      }
      user.completedForm = true;
     Navigator.push(context, MaterialPageRoute(builder: (context) => MainMap(userPets: user)));
+  }
+
+  String calculateDangerousness(int dangerousness1){
+    if (dangerousness1 <= 4){
+      return "Amigable";
+    }
+    else if (dangerousness1 <= 7){
+      return "No amigable";
+    }
+    else{
+      return "Extremadamente peligroso";
+    }
   }
 
   void _openDescriptionDialog() {
@@ -293,12 +308,35 @@ void _openChangeNameDialog(Pet actualPet) {
     },
   );
 }
+
+  void _showPersonalityDialog(Pet pet){
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text("Personalidad"),
+        content: PersonalityForm(personality: pet.personality, onSubmit: (personality){
+          setState(() {
+            pet.personality = personality;
+            Navigator.pop(context);
+          });
+        }),
+        actions: [
+          TextButton(
+            child: const Text('Cerrar'),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      );
+    },
+  );
+}
+
   @override
   Widget build(BuildContext context) {
     Pet actualPet;
     if (petSelectedIndex == 0){
       actualPet = user.pet_1;
-      
     }
     else {
       actualPet = user.pet_2;
@@ -384,7 +422,7 @@ void _openChangeNameDialog(Pet actualPet) {
                   ),
                   const SizedBox(width: 10,),
                   ElevatedButton.icon(
-                    label: const Text("hembra"),
+                    label: const Text("Hembra"),
                     icon: const Icon(Icons.female),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: !actualPet.gender ? Colors.pinkAccent : Colors.pinkAccent.withOpacity(0.1),
@@ -442,10 +480,9 @@ void _openChangeNameDialog(Pet actualPet) {
             const SizedBox(height: 10,),
             TextField(
               decoration: const InputDecoration(
-                labelText: "Nombre",
+                labelText: "Nombre de la mascota",
                 alignLabelWithHint: true,
                 isDense: true,
-                
                 filled: true,
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(
@@ -475,7 +512,7 @@ void _openChangeNameDialog(Pet actualPet) {
                 filled: true,
                 labelText: "Descripción",
                 alignLabelWithHint: true,
-                hintText: "Escribe una descripcion",
+                hintText: "Si quieres, puedes escribir una descripción",
                 enabledBorder: OutlineInputBorder(
                   borderSide: const BorderSide(
                     color: Color.fromARGB(20, 0, 0, 0),
@@ -493,27 +530,36 @@ void _openChangeNameDialog(Pet actualPet) {
         flex: 2,
         child: Column(
           children: [
-            
             const Text("Peligrosidad"),
             const SizedBox(height: 10,),
             DropdownButton(
-              value: actualPet.dangerousness.toString(),
+              value: actualPet.dangerousness,
               style: const TextStyle(fontSize: 12,color: Colors.black,fontWeight: FontWeight.bold,),
               
-              items: const [DropdownMenuItem<String>(child: Text("0",),value: "0",),DropdownMenuItem<String>(child: Text("1",),value: "1",), DropdownMenuItem<String>(child: Text("2",),value: "2",), DropdownMenuItem<String>(child: Text("3",),value: "3",), DropdownMenuItem<String>(child: Text("4",),value: "4",), DropdownMenuItem<String>(child: Text("5",),value: "5",), DropdownMenuItem<String>(child: Text("6",),value: "6",), DropdownMenuItem<String>(child: Text("7",),value: "7",), DropdownMenuItem<String>(child: Text("8",),value: "8",), DropdownMenuItem<String>(child: Text("9",),value: "9",), DropdownMenuItem<String>(child: Text("10",),value: "10",),],
+              items: const [DropdownMenuItem<String>(value: "Amigable",child:Text("Amigable",),),DropdownMenuItem<String>(value: "No amigable",child: Text("No amigable",),), DropdownMenuItem<String>(value: "Extremadamente peligroso",child: Text("Extremadamente peligroso",),),],
               onChanged: (value) {
                 setState(() {
-                  int dangerousness = int.parse(value!);
-                  actualPet.dangerousness = dangerousness;
+
+                  actualPet.dangerousness = value!;
                 });
               },
               
             ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color.fromARGB(250, 116, 0, 211), 
+                shadowColor: Colors.transparent,
+              ),
+              child: const Text("Personalidad"),onPressed: (){
+              _showPersonalityDialog(actualPet);
+              
+              },
+              )
           ],
         ),
       ),
       Flexible(
-          child: Align(
+        child: Align(
         alignment: const AlignmentDirectional(0, 1),
         child: Row(
             mainAxisSize: MainAxisSize.max,

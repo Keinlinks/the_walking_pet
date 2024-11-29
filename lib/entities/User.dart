@@ -7,7 +7,6 @@ class User {
   String id = "";
   Pet pet_1 = Pet().withRaceId(1);
   Pet pet_2 = Pet();
-  List<String> personality = [];
   String city = "iquique";
   bool completedForm = false;
 

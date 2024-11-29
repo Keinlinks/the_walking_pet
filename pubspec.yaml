@@ -16,6 +16,7 @@ dependencies:
   rxdart: ^0.28.0
   json_serializable: ^6.8.0
   flutter_map_tile_caching: ^9.0.0-dev.5
+  deepcopy: ^1.1.2
   
 
 dev_dependencies:

@@ -11,10 +11,10 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      debugShowMaterialGrid: false,
       home: Scaffold(
-        
         resizeToAvoidBottomInset: false, 
-        appBar: AppBar(title: const Text("The Walking Pet"),backgroundColor: Colors.black.withAlpha(100),),
+        appBar: AppBar(title: const Text("The Walking Pet"),backgroundColor: const Color.fromARGB(255, 9, 116, 216).withAlpha(100),),
         body: 
               const PetForm()
       ),

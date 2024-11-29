@@ -6,9 +6,10 @@ class Pet{
   int age = 0;
   int month =0;
   int day = 0;
-  int dangerousness = 0;
+  String dangerousness = "Amigable";
   bool gender = false;
   String _description = "";
+  List<dynamic> personality = [];
 
   String get description => _description;
 
@@ -33,6 +34,7 @@ class Pet{
       'dangerousness': dangerousness,
       'gender': gender,
       'description': description,
+      'personality': personality
     };
   }
 
@@ -46,7 +48,7 @@ class Pet{
     pet.age = json['age'];
     pet.month = json['month'];
     pet.raceId = json['raceId'];
-    
+    pet.personality = json['personality'];
     return pet;
   }
 
