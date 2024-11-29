@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:deepcopy/deepcopy.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -13,10 +13,11 @@ import 'package:the_walking_pet/entities/User.dart';
 import 'package:the_walking_pet/entities/filters.dart';
 import 'package:the_walking_pet/services/socketService.dart';
 import 'package:the_walking_pet/shared/constants.dart';
-
+import 'package:geodesy/geodesy.dart';
 
 class LatLngAndMarker {
   late LatLng position;
+  bool adviced = false;
   Marker marker;
   User user;
 
@@ -29,7 +30,7 @@ class GlobalState {
   String? id;
   Map<String,LatLngAndMarker> other_users_markersFiltered = {};
   Filters filters = Filters();
-
+  num adviceDistanceInMeter = 150;
   GlobalState();
 
   setMyPosition(Position myPosition){
@@ -54,7 +55,6 @@ class GlobalState {
 
   removeOtherUser(String id){
     if (other_users_markers.containsKey(id)){
-      print("se elimino el usuario ${id}");
       other_users_markers.remove(id);
     }
     updateFilters();
@@ -64,17 +64,13 @@ class GlobalState {
     other_users_markersFiltered = (other_users_markers.deepcopy()).cast<String,LatLngAndMarker>();
     if (filters.selectedDangerousness == "") filters.selectedDangerousness = "No filtro";
     if (filters.selectedGender == "") filters.selectedGender = "No filtro";
-    print(filters.selectedDangerousness);
-    print(filters.selectedGender);
     if (filters.selectedDangerousness != "No filtro") {
-      other_users_markersFiltered = Map.fromEntries(other_users_markers.entries.where((element) => element.value.user.pet_1.dangerousness == filters.selectedDangerousness || element.value.user.pet_2.dangerousness == filters.selectedDangerousness));
+      other_users_markersFiltered = Map.fromEntries(other_users_markersFiltered.entries.where((element) => element.value.user.pet_1.dangerousness == filters.selectedDangerousness || element.value.user.pet_2.dangerousness == filters.selectedDangerousness));
     }
     if (filters.selectedGender != "No filtro") {
-      other_users_markersFiltered = Map.fromEntries(other_users_markersFiltered.entries.where((element) => element.value.user.pet_1.gender == filters.selectedGender || element.value.user.pet_2.gender == filters.selectedGender));
+      other_users_markersFiltered = Map.fromEntries(other_users_markersFiltered.entries.where((element) => element.value.user.pet_1.gender == (filters.selectedGender == "Macho") || element.value.user.pet_2.gender == (filters.selectedGender == "Macho")));
     }
-    print("se filtro: ${other_users_markersFiltered.length}");
   }
-
 }
 
 class MainMap extends StatefulWidget {
@@ -88,12 +84,15 @@ class MainMap extends StatefulWidget {
 class _MainMapState extends State<MainMap> {
   late SocketService socketService;
   bool isIdentify = false;
+  Geodesy geodesy = Geodesy();
   late StreamController<GlobalState> controllerFilters;
   late Future<bool> idLoaded;
-  Map<String,LatLngAndMarker> other_users_markers = {};
   final MapController _mapController = MapController();
   StreamSubscription<Position>? _positionStream;
   bool isloaded = false;
+
+  List<String> dangersId = [];
+
 
   GlobalState globalState = GlobalState();
 
@@ -187,6 +186,15 @@ class _MainMapState extends State<MainMap> {
                 onPressed: () => Navigator.pop(context),
               ),
               TextButton(
+                child: const Text('Quitar todo'),
+                onPressed: () {
+                  builder(() {
+                    filtersCopy = Filters();
+
+                });
+                },
+              ),
+              TextButton(
                 child: const Text('Aplicar'),
                 onPressed: () {
                   globalState.filters = filtersCopy.copy();
@@ -224,17 +232,16 @@ class _MainMapState extends State<MainMap> {
         distanceFilter: 10,
       ),
     ).doOnData((myPosition) {
+      evaluate_dangersWithAll();
       if (widget.userPets.pet_1.raceId == 22) return;
       ApiUpdateUserLocation payload = ApiUpdateUserLocation(id:widget.userPets.id,latitude: myPosition.latitude,longitude: myPosition.longitude,city: widget.userPets.city);
 
-      print("combio mi posicion: ${myPosition.latitude} ${myPosition.longitude}");
       if (!isIdentify){
       socketService.socket.emit("identify", [widget.userPets.toJson(),payload.toJson()]);
       isIdentify = true;
       return;
       }
       // enviar a la api 
-
       socketService.socket.emit("update_user_location", payload.toJson());
     }).transform(StreamTransformer<Position, GlobalState>.fromHandlers(handleData: (myPosition, sink) {
         globalState.setMyPosition(myPosition);
@@ -245,21 +252,21 @@ class _MainMapState extends State<MainMap> {
   Stream<GlobalState> stream_getNewUser() async*{
     final controller = StreamController<GlobalState>();
       socketService.socket.on("receive_userData",(newUserData){
-      print("recibiendo nuevo usuario: ${newUserData['id']}");
       
-      if (other_users_markers.containsKey(newUserData['id'])){
+      if (globalState.other_users_markers.containsKey(newUserData['id'])){
         
       }
       else if (mounted){
         User user = User.fromJson(newUserData);
         Marker newMarker = markerPet(LatLng(newUserData['latitude'], newUserData['longitude']), user, false,context);
-        other_users_markers[newUserData['id']] = LatLngAndMarker(LatLng(newUserData['latitude'], newUserData['longitude']),newMarker,user);
-        globalState.setOtherUsersMarkers( other_users_markers);
+        globalState.other_users_markers[newUserData['id']] = LatLngAndMarker(LatLng(newUserData['latitude'], newUserData['longitude']),newMarker,user);
+        globalState.setOtherUsersMarkers( globalState.other_users_markers);
         ApiUpdateUserLocation payload = ApiUpdateUserLocation.withReceiver(widget.userPets.id,globalState.myPosition!.latitude,globalState.myPosition!.longitude,widget.userPets.city,newUserData['id']);
         
         String myUser = widget.userPets.toJson();
         print("emitiendo datos a :${newUserData['id']}");
         socketService.socket.emit("update_userdata_to_user", [myUser,payload.toJson(),]);
+        evaluate_dangers(globalState.other_users_markers[newUserData['id']]!);
       }
       controller.add(globalState);
      });
@@ -269,11 +276,11 @@ class _MainMapState extends State<MainMap> {
    Stream<GlobalState> stream_updateOtherUserLocation() async*{
       final controller = StreamController<GlobalState>();
       socketService.socket.on("receive_user_location",(otherUserData){
-        print("recibido user_location ${otherUserData}");
       ApiUpdateUserLocation(id:otherUserData['id'],latitude: otherUserData['latitude'],longitude: otherUserData['longitude'],city: otherUserData['city']);
-      if (other_users_markers.containsKey(otherUserData['id']) && mounted){
+      if (globalState.other_users_markers.containsKey(otherUserData['id']) && mounted){
       globalState.updateOtherUser(otherUserData['id'], otherUserData["latitude"], otherUserData["longitude"], context);
       }
+      evaluate_dangers(globalState.other_users_markers[otherUserData['id']]!);
       controller.add(globalState);
      });
      yield* controller.stream;
@@ -288,6 +295,144 @@ class _MainMapState extends State<MainMap> {
      yield* controller.stream;
    }
   
+  void evaluate_dangers(LatLngAndMarker latLngAndMarker) async {
+
+    LatLng l1 = LatLng(latLngAndMarker.position.latitude, latLngAndMarker.position.longitude);
+    LatLng l2 = LatLng(globalState.myPosition!.latitude, globalState.myPosition!.longitude);
+    num distanceInMeters = geodesy.distanceBetweenTwoGeoPoints(l1, l2);
+    if (distanceInMeters > globalState.adviceDistanceInMeter) {
+      latLngAndMarker.adviced = false;
+      dangersId.remove(latLngAndMarker.user.id);
+      return;
+    };
+    if (latLngAndMarker.adviced) return;
+
+    latLngAndMarker.adviced = true;
+    if (!dangersId.contains(latLngAndMarker.user.id)) {
+      dangersId.add(latLngAndMarker.user.id);
+    }
+    HapticFeedback.vibrate();
+  }
+  void evaluate_dangersWithAll(){
+      for (var key in globalState.other_users_markers.keys){
+        evaluate_dangers(globalState.other_users_markers[key]!);
+      }
+  }
+
+  openDangersDialog(BuildContext context){
+    List<Race>raceList = Constants.raceList;
+    
+    if (dangersId.isEmpty){
+      showDialog(
+      context: context,
+      builder: (BuildContext modalContext) {
+        return AlertDialog(
+          title: const Text("Alertas"),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10,vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                const Text("No hay peligros cercanos",style: TextStyle(fontSize: 25,color: Colors.greenAccent),),
+                const SizedBox(height: 10,),
+                Text("Hay ${dangersId.length} mascotas que pueden ser peligrosas"),
+              ],
+              ),
+            ),
+          ),
+           actions: [
+            TextButton(
+              child: const Text('Cerrar'),
+              onPressed: () => Navigator.pop(modalContext),
+            ),
+          ],
+        );
+      },
+    );
+      
+      return;
+    }
+    showDialog(
+  context: context,
+  builder: (BuildContext context) {
+    return AlertDialog(
+      title: const Text("Alertas"),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 300, // Establece una altura para el contenido
+        child: Column(
+          children: [
+            const Text("¡Atención!", style: TextStyle(fontSize: 25, color: Colors.redAccent)),
+            const SizedBox(height: 10),
+            Text("¡Hay ${dangersId.length} mascota(s) que puede(n) ser peligrosa(s)!"),
+            const SizedBox(height: 10),
+            Expanded(  // Usamos Expanded para darle espacio adecuado al GridView
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 4,
+                  mainAxisSpacing: 4,
+                  childAspectRatio: 0.7,
+                ),
+                itemCount: dangersId.length,
+                itemBuilder: (context, index) {
+                  final LatLngAndMarker latLngAndMarker = globalState.other_users_markers[dangersId[index]]!;
+                  Race race_1 = raceList.firstWhere((element) => element.id == latLngAndMarker.user.pet_1.raceId);
+                  return GestureDetector(
+                    onTap: () {},
+                    onLongPress: () {
+                      _moveCamera(latLngAndMarker.position);
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          clipBehavior: Clip.antiAlias,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                          ),
+                          child: Image(
+                            image: AssetImage(race_1.image),
+                            height: 80,
+                            width: 80,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Icon(Icons.error);
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          race_1.name,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          child: const Text('Cerrar'),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
+    );
+  },
+);
+  }
+
 
 
   @override
@@ -317,10 +462,6 @@ class _MainMapState extends State<MainMap> {
             return Center(child: Text('Error: ${snapshot.error}')); // Error
           }
             if(snapshot.data != null && mounted && snapshot.data!.id != "" && snapshot.data!.myPosition != null){
-              if(snapshot.data!.other_users_markers.isNotEmpty){
-            
-      
-              }
             
             LatLng myPosition = LatLng(snapshot.data!.myPosition!.latitude, snapshot.data!.myPosition!.longitude);
             return Stack(
@@ -366,6 +507,23 @@ class _MainMapState extends State<MainMap> {
                   borderRadius: BorderRadius.circular(50),
                 ),
                 child: const Icon(Icons.location_on, color: Colors.white, size: 30,),),)
+              ),
+              Positioned(
+              top: 20,
+              left: 25,
+              child: GestureDetector(onTap: (){
+                openDangersDialog(context);
+              }, child: Container(
+                width: 50,
+                height: 50,
+                clipBehavior: Clip.antiAlias,
+
+                decoration: BoxDecoration(
+                  color: dangersId.isNotEmpty ? const Color.fromARGB(255, 194, 34, 34) : const Color.fromARGB(255, 128, 180, 123),
+                  borderRadius: BorderRadius.circular(50),
+
+                ),
+                child: const Icon(Icons.warning, color: Colors.white, size: 25,),),)
               )
               ]
           );
@@ -402,7 +560,44 @@ Marker markerPet(LatLng location, User user, bool isUser,BuildContext context) {
     }
   }
   
-void _openPetDialog(BuildContext context) {
+  return Marker(
+      point: location,
+      rotate: true,
+      height: 100,
+      width: 100,
+      child: GestureDetector(
+        onTap: (){
+          _openPetDialog(context,user);
+        },
+        child: Column(
+          children: [Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                border: border_color(user.pet_1.dangerousness),
+              
+              ),
+              child: Image(
+                image: AssetImage(race_1.image),
+                fit: BoxFit.cover,
+              )),
+              const SizedBox(height: 2,),
+              Text(
+                user.pet_1.name,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black,
+                ),
+              )
+              ]
+        ),
+      ));
+}
+
+void _openPetDialog(BuildContext context, User user) {
+  List<Race>raceList = Constants.raceList;
+  Race race_1 = raceList.firstWhere((element) => element.id == user.pet_1.raceId);
+  Race race_2 = raceList.firstWhere((element) => element.id == user.pet_2.raceId);
   String getGenderText(bool gender){
     return gender ? "Macho" : "Hembra";
   };
@@ -500,37 +695,4 @@ void _openPetDialog(BuildContext context) {
       );
     },
   );
-}
-  return Marker(
-      point: location,
-      rotate: true,
-      height: 100,
-      width: 100,
-      child: GestureDetector(
-        onTap: (){
-          _openPetDialog(context);
-        },
-        child: Column(
-          children: [Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                border: border_color(user.pet_1.dangerousness),
-              
-              ),
-              child: Image(
-                image: AssetImage(race_1.image),
-                fit: BoxFit.cover,
-              )),
-              const SizedBox(height: 2,),
-              Text(
-                user.pet_1.name,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.black,
-                ),
-              )
-              ]
-        ),
-      ));
 }
